@@ -58,6 +58,7 @@ fn scan_dir(dir: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
 
         check_zone_identifier(name, &path, config, deleted, found);
         check_thumbs(name, &path, config, deleted, found);
+        check_ds_store(name, &path, config, deleted, found);
     }
 }
 
@@ -84,6 +85,28 @@ fn check_thumbs(name: &str, path: &Path, config: &Config, deleted: &mut u32, fou
     ];
 
     if thumbs_files.contains(&name) {
+        *found += 1;
+        println!("{}", path.display());
+
+        if !config.dry_run {
+            match fs::remove_file(path) {
+                Ok(_) => *deleted += 1,
+                Err(e) => println!("Error: {}", e),
+            }
+        }
+    }
+}
+
+fn check_ds_store(name: &str, path: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
+    let mac_files = [
+        ".DS_Store",
+        ".Spotlight-V100",
+        ".Trashes",
+        ".fseventsd",
+        ".AppleDouble",
+    ];
+
+    if mac_files.contains(&name) {
         *found += 1;
         println!("{}", path.display());
 
