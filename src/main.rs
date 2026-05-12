@@ -57,11 +57,33 @@ fn scan_dir(dir: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
         check_zone_identifier(name, &path, config, deleted, found);
+        check_thumbs(name, &path, config, deleted, found);
     }
 }
 
 fn check_zone_identifier(name: &str, path: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
     if name.ends_with(".ZoneIdentifier") {
+        *found += 1;
+        println!("{}", path.display());
+
+        if !config.dry_run {
+            match fs::remove_file(path) {
+                Ok(_) => *deleted += 1,
+                Err(e) => println!("Error: {}", e),
+            }
+        }
+    }
+}
+
+fn check_thumbs(name: &str, path: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
+    let thumbs_files = [
+        "Thumbs.db",
+        "Thumbs.db:encryptable",
+        "desktop.ini",
+        "ehthumbs.db",
+    ];
+
+    if thumbs_files.contains(&name) {
         *found += 1;
         println!("{}", path.display());
 
