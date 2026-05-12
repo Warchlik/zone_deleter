@@ -5,6 +5,7 @@ struct Config {
     search_dir: String,
     recursive: bool,
     dry_run: bool,
+    only: Option<String>, 
 }
 
 fn parse_args() -> Config {
@@ -12,6 +13,10 @@ fn parse_args() -> Config {
 
     let recursive = args.contains(&"-r".to_string()) || args.contains(&"-R".to_string());
     let dry_run = args.contains(&"--dry-run".to_string());
+
+    let only = args.iter()
+        .find(|a| a.starts_with("--only="))
+        .map(|a| a.replace("--only=", ""));
 
     let search_dir = args.iter().skip(1)
         .find(|a| !a.starts_with('-'))
@@ -56,9 +61,16 @@ fn scan_dir(dir: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
 
         let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-        check_zone_identifier(name, &path, config, deleted, found);
-        check_thumbs(name, &path, config, deleted, found);
-        check_ds_store(name, &path, config, deleted, found);
+        match config.only.as_deref() {
+            Some("ZoneIdentifier") => check_zone_identifier(name, &path, config, deleted, found),
+            Some("Thumbs") => check_thumbs(name, &path, config, deleted, found),
+            Some("MacOS") => check_ds_store(name, &path, config, deleted, found),
+            _ => {
+                check_zone_identifier(name, &path, config, deleted, found);
+                check_thumbs(name, &path, config, deleted, found);
+                check_ds_store(name, &path, config, deleted, found);
+            }
+        }
     }
 }
 
