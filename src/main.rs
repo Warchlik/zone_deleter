@@ -1,32 +1,44 @@
 use std::fs::{self, ReadDir};
 use std::path::Path;
 
-fn main() {
+struct Config {
+    search_dir: String,
+    recursive: bool,
+    dry_run: bool,
+}
+
+fn parse_args() -> Config {
     let args: Vec<String> = std::env::args().collect();
 
-    let search_dir: &str = if args.len() > 1 {
-        args[1].as_str()
-    } else {
-        "."
-    };
+    let recursive = args.contains(&"-r".to_string()) || args.contains(&"-R".to_string());
+    let dry_run = args.contains(&"--dry-run".to_string());
 
-    let dry_run: bool = args.contains(&"--dry-run".to_string());
+    let search_dir = args.iter().skip(1)
+        .find(|a| !a.starts_with('-'))
+        .cloned()
+        .unwrap_or_else(|| ".".to_string());
 
-    println!("Searching .zoneIdentifier files in: {}", search_dir);
+    Config { search_dir, recursive, dry_run }
+}
 
-    if dry_run {
+fn main() {
+    let config = parse_args();
+
+    println!("Searching .ZoneIdentifier files in: {}", config.search_dir);
+
+    if config.dry_run {
         println!("Dry run on");
     }
 
     let mut deleted: u32 = 0;
     let mut found: u32 = 0;
 
-    scan_dir(Path::new(search_dir), &mut deleted, &mut found, dry_run);
+    scan_dir(Path::new(&config.search_dir), &config, &mut deleted, &mut found);
 
     println!("\nFound: {} | Deleted: {}", found, deleted);
 }
 
-fn scan_dir(dir: &Path, deleted: &mut u32, found: &mut u32, dry_run: bool) {
+fn scan_dir(dir: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
     let files: ReadDir = match fs::read_dir(dir) {
         Ok(e) => e,
         Err(_) => return,
@@ -36,20 +48,27 @@ fn scan_dir(dir: &Path, deleted: &mut u32, found: &mut u32, dry_run: bool) {
         let path = file.path();
 
         if path.is_dir() {
-            scan_dir(&path, deleted, found, dry_run)
-        } else {
-            let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+            if config.recursive {
+                scan_dir(&path, config, deleted, found);
+            }
+            continue;
+        }
 
-            if name.ends_with(".ZoneIdentifier") || name.ends_with(":Zone.Identifier") {
-                *found += 1;
-                println!("🗑️  {}", path.display());
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
 
-                if !dry_run {
-                    match fs::remove_file(&path) {
-                        Ok(_) => *deleted += 1,
-                        Err(e) => println!("   ❌ Błąd: {}", e),
-                    }
-                }
+        check_zone_identifier(name, &path, config, deleted, found);
+    }
+}
+
+fn check_zone_identifier(name: &str, path: &Path, config: &Config, deleted: &mut u32, found: &mut u32) {
+    if name.ends_with(".ZoneIdentifier") {
+        *found += 1;
+        println!("{}", path.display());
+
+        if !config.dry_run {
+            match fs::remove_file(path) {
+                Ok(_) => *deleted += 1,
+                Err(e) => println!("Error: {}", e),
             }
         }
     }
